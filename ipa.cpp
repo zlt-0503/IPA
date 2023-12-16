@@ -29,7 +29,8 @@ int main (int argc, char *argv[]) {
     glClear(GL_COLOR_BUFFER_BIT);
     glutDisplayFunc(glDraw);
     glutReshapeFunc(reshape);
-    glutKeyboardFunc(keyboard);
+    glutKeyboardFunc(keyboardASCII);
+    glutSpecialFunc(keyboardSpecial);
     glutTimerFunc(50, Timer, 50);
     glutMainLoop();
     #endif

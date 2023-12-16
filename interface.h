@@ -14,6 +14,7 @@ private:
     TimerData() : passedTime(0), lastingTime(0) {}
 public:
     static TimerData& getInstance();
+    int getPassedTime();
     void setLastingTime(int time);
     bool updateTime(int delta);
     TimerData(const TimerData&) = delete;
@@ -22,7 +23,9 @@ public:
 
 void reshape(int width, int height);
 
-void keyboard(unsigned char key, int x, int y);
+void keyboardASCII(unsigned char key, int x, int y);
+
+void keyboardSpecial(int key, int x, int y);
 
 void Timer(int value);
 

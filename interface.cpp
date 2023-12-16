@@ -7,6 +7,9 @@ TimerData& TimerData::getInstance() {
 void TimerData::setLastingTime(int time) {
     lastingTime = time;
 }
+int TimerData::getPassedTime() {
+    return passedTime;
+}
 bool TimerData::updateTime(int delta) {
     passedTime += delta;
     return passedTime >= lastingTime;
@@ -37,25 +40,83 @@ void reshape(int width, int height) {
     #endif
 }
 
-void keyboard(unsigned char key, int x, int y) {
+void keyboardASCII(unsigned char key, int x, int y) {
     (void)x;
     (void)y;
-    ParkingLotManager& manager = ParkingLotManager::getInstance();
+    ParkingLotManager& plmanager = ParkingLotManager::getInstance();
     if (key >= '0' && key <= '9') {
         const int floor = key - '0' - 1;
-        manager.setCurrentFloor(floor);
+        plmanager.setCurrentFloor(floor);
     }
 }
 
+void keyboardSpecial(int key, int x, int y) {
+    (void)x;
+    (void)y;
+    ParkingLotManager& plmanager = ParkingLotManager::getInstance();
+    if (key == GLUT_KEY_RIGHT) {
+        for (int i = 0; i < 20; i++) {
+            plmanager.prepareAllFloors();
+        }
+    }
+}
+
+void drawInit() {
+    #ifndef NO_GUI
+    glBegin(GL_POINTS);
+        for (int i = 0; i < 900; ++i) {
+            for (int j = 0; j < 700; ++j) {
+                glColor3f((float)rand() / (float)RAND_MAX, (float)rand() / (float)RAND_MAX, (float)rand() / (float)RAND_MAX);
+                glVertex2i(i, j);
+            }
+        }
+    glEnd();
+    glColor3f(1.0, 1.0, 0.0);
+    const std::string message = "Activating Monitor......";
+    PrintString(350, 350, GLUT_BITMAP_TIMES_ROMAN_24, message);
+    #endif
+}
+
+void drawPL() {
+    #ifndef NO_GUI
+    ParkingLotManager& PLmanager = ParkingLotManager::getInstance();
+    PLmanager.prepareAllFloors();
+    PLmanager.getCurrentFloor().drawAll();
+    const time_t now = time(0);
+    struct tm *localTime = localtime(&now);
+    std::stringstream timeStream;
+    timeStream << std::setfill('0') << std::setw(2) << 1900 + localTime->tm_year << '-'
+               << std::setfill('0') << std::setw(2) << 1 + localTime->tm_mon << '-'
+               << std::setfill('0') << std::setw(2) << localTime->tm_mday << ' '
+               << std::setfill('0') << std::setw(2) << localTime->tm_hour << ':'
+               << std::setfill('0') << std::setw(2) << localTime->tm_min << ':'
+               << std::setfill('0') << std::setw(2) << localTime->tm_sec;
+    const std::string currentTime = timeStream.str();
+    const int currentFloor = PLmanager.getFloorNumber();
+    std::stringstream ss;
+    ss << "Floor " << currentFloor;
+    const std::string floorText = ss.str();
+    PLmanager.prepareAllFloors();
+    glClear(GL_COLOR_BUFFER_BIT);
+    PLmanager.getCurrentFloor().drawAll();
+    glColor3f(0.0, 0.0, 0.0);
+    PrintString(200, 620, GLUT_BITMAP_TIMES_ROMAN_24, floorText);
+    glColor3f(0.0, 0.0, 0.0);
+    PrintString(320, 620, GLUT_BITMAP_TIMES_ROMAN_24, currentTime);
+    #endif
+}
+
 void Timer(int value) {
+    (void)value;
+    #ifndef NO_GUI
     TimerData& data = TimerData::getInstance();
     if (data.updateTime(value)) {
         exit(0);
     }
-    ParkingLotManager& manager = ParkingLotManager::getInstance();
-    manager.prepareAllFloors();
-    #ifndef NO_GUI
-    manager.getCurrentFloor().drawAll();
+    if (data.getPassedTime() > 2000) {
+        ParkingLotManager& manager = ParkingLotManager::getInstance();
+        manager.prepareAllFloors();
+    }
     glutPostRedisplay();
     glutTimerFunc((unsigned int)value, Timer, value);
     #endif
@@ -75,32 +136,20 @@ void PrintString(float x, float y, void *font, const std::string &string) {
 }
 
 void glDraw() {
-    const time_t now = time(0);
-    struct tm *localTime = localtime(&now);
-    std::stringstream timeStream;
-    timeStream << std::setfill('0') << std::setw(2) << 1900 + localTime->tm_year << '-'
-               << std::setfill('0') << std::setw(2) << 1 + localTime->tm_mon << '-'
-               << std::setfill('0') << std::setw(2) << localTime->tm_mday << ' '
-               << std::setfill('0') << std::setw(2) << localTime->tm_hour << ':'
-               << std::setfill('0') << std::setw(2) << localTime->tm_min << ':'
-               << std::setfill('0') << std::setw(2) << localTime->tm_sec;
-    const std::string currentTime = timeStream.str();
-    ParkingLotManager& manager = ParkingLotManager::getInstance();
-    const int currentFloor = manager.getFloorNumber();
-    std::stringstream ss;
-    ss << "Floor " << currentFloor;
-    const std::string floorText = ss.str();
-    manager.prepareAllFloors();
     #ifndef NO_GUI
     glClear(GL_COLOR_BUFFER_BIT);
-    manager.getCurrentFloor().drawAll();
-    glColor3f(0.0, 0.0, 0.0);
-    PrintString(200, 620, GLUT_BITMAP_TIMES_ROMAN_24, floorText);
-    glColor3f(0.0, 0.0, 0.0);
-    PrintString(320, 620, GLUT_BITMAP_TIMES_ROMAN_24, currentTime);
+    TimerData& data = TimerData::getInstance();
+    if (data.getPassedTime() <= 2000) {
+        drawInit();
+    }
+    else
+    {
+        drawPL();
+    }
     glutSwapBuffers();
     #endif
 }
+
 
 void printHelpMessage() {
     std::cout << "-h | --help            Print help message\n";
@@ -111,7 +160,7 @@ void cla(int argc, char* argv[], int* lasting_time) {
     const std::string optString = "hf:t:";
     const struct option long_options[] = {
         {"help", no_argument, nullptr, 'h'},
-        {"lasting-time", required_argument, nullptr, 't'},
+        {"running-time", required_argument, nullptr, 't'},
         {nullptr, 0, nullptr, 0},
     };
     int opt = 0;
